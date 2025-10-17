@@ -21,25 +21,34 @@ Dependencies (managed via `pyproject.toml`):
 
 Create a virtual environment (optional) and install dependencies:
 
-```pwsh
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -U pip
-pip install streamlit pymupdf google-adk
-```
+1. Install uv and create a virtual environment:
 
-Run the Streamlit UI:
+    ```pwsh
+    uv venv --python 3.12
+    ```
 
-```pwsh
-streamlit run main.py
-```
+2. Activate the virtual environment:
+
+    ```pwsh
+    .\.venv\Scripts\Activate.ps1
+    ```
+
+3. Install dependencies:
+
+    ```pwsh
+    uv sync
+    ```
+
+4. Run ADK as a web server
+
+    ```pwsh
+    adk api_server
+    ```
+
+5. Run the Streamlit UI:
+
+    ```pwsh
+    streamlit run main.py
+    ```
 
 Then open the local URL shown by Streamlit (typically <http://localhost:8501>), upload a PDF CV, and review the results.
-
-Alternatively, you can use the preconfigured VS Code task "Run Streamlit" from the Command Palette or the Run and Debug panel.
-
-## Notes
-
-- For image-only PDFs (scanned CVs), the text extraction may be empty. Consider running OCR beforehand.
-- Job recommendations are heuristic and based on simple keyword matches; refine the mapping in `main.py` as needed.
-
