@@ -3,89 +3,69 @@ import requests
 import base64
 import mimetypes
 import time
-import math
 import uuid
+import os
 
-SERVER = "http://localhost:8000"
-APP_NAME = "agent_lapangan"
-USER_ID = "web_user"
+SERVER = os.getenv("ADK_SERVER", "http://localhost:8000")
+APP_NAME = os.getenv("APP_NAME", "agent_lapangan")
 
 st.title("CV Reviewer (Streamlit + ADK)")
 
-def _safe_partial_markdown(md: str) -> str:
-    """
-    Jika code fence ``` belum genap, tambahkan penutup sementara
-    supaya render nggak pecah saat streaming.
-    """
-    fence_count = md.count("```")
-    if fence_count % 2 == 1:
-        return md + "\n```"
-    return md
+st.sidebar.header("Configuration")
+st.sidebar.markdown("""
+Configure the application settings below."""
+)
+# Credentials
+api_key = st.sidebar.text_input("Google API Key", type="password")
+use_vertex_ai = st.sidebar.checkbox("Use Vertex AI", value=False)
 
+def _save_settings() -> None:
+    try:
+        requests.post(
+            f"{SERVER}/secret",
+            json={
+                "api_key": api_key,
+                "use_vertex_ai": str(1 if use_vertex_ai else 0),
+            },
+            timeout=30,
+        )
+    except Exception as e:
+        st.error(f"Error saving settings: {e}")
 
-def stream_markdown(
-    text: str, placeholder, cps: int = 80, min_chunk: int = 8, max_chunk: int = 60
-):
-    """
-    Stream teks markdown ke placeholder dengan efek ngetik.
-    - cps: chars per second (kira-kira kecepatan ngetik)
-    - min/max_chunk: ukuran potongan per update biar smooth
-    """
-    if not text:
-        return
+st.sidebar.button("Save Settings", on_click=_save_settings)
 
-    # adaptif: chunk size berdasarkan panjang teks
-    # makin panjang, makin gede chunk biar nggak kelamaan
-    L = len(text)
-    target_updates = max(20, min(150, L // 10))
-    chunk = max(min_chunk, min(max_chunk, math.ceil(L / target_updates)))
-
-    buf = ""
-    for i in range(0, L, chunk):
-        buf = text[: i + chunk]
-        placeholder.markdown(_safe_partial_markdown(buf))
-        # jeda sesuai cps (kasar)
-        sleep_s = max(0.005, chunk / max(1, cps))
-        time.sleep(sleep_s)
-
-
-def render_assistant_parts_streaming(parts):
-    """
-    Render assistant parts dengan efek ngetik untuk part 'text'.
-    Attachment (inlineData) ditampilkan instan.
-    """
-    if not parts:
-        st.markdown("_No response parts returned._")
-        return
-
-    for part in parts:
-        if "text" in part and part["text"]:
-            ph = st.empty()
-            stream_markdown(part["text"], ph, cps=90)
-        elif "inlineData" in part:
-            meta = part["inlineData"]
-            name = meta.get("displayName", "attachment")
-            mime = meta.get("mimeType", "application/octet-stream")
-            st.caption(f"📎 **{name}**")
+def _create_server_session():
+    """Create a new session on the ADK server for the current local session_id/user_id."""
+    payload = {
+        "app_name": APP_NAME,
+        "user_id": st.session_state.user_id,
+        "session_id": st.session_state.session_id,
+    }
+    response = requests.post(
+        f"{SERVER}/session",
+        json=payload,
+        timeout=30,
+    )
+    response.raise_for_status()
+    data = response.json()
+    print("Created (or recreated) session on server:", data)
 
 def ensure_session():
     if "session_id" not in st.session_state:
-        st.session_state.session_id = (
-            f"session_{int(time.time())}_{uuid.uuid4().hex[:6]}"
-        )
-        # Create a new session on the ADK server
-        requests.post(
-            f"{SERVER}/apps/{APP_NAME}/users/{USER_ID}/sessions/{st.session_state.session_id}",
-            json={},
-            timeout=30,
-        )
+        try:
+            st.session_state.session_id = (
+                f"session_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+            )
+            st.session_state.user_id = f"user_{uuid.uuid4().hex[:8]}"
+            _create_server_session()
+        except Exception as e:
+            st.error(f"Error creating session on server: {e}")
+            st.stop()
     if "messages" not in st.session_state:
         # Each item: {"role": "user"|"assistant", "parts": [{"text":...} or {"inlineData":{...}}]}
         st.session_state.messages = []
 
-
 ensure_session()
-
 
 def file_part_from_uploaded(_file):
     """Convert a Streamlit UploadedFile to ADK inlineData part."""
@@ -98,7 +78,8 @@ def file_part_from_uploaded(_file):
         "inlineData": {
             "displayName": _file.name,
             "data": b64,
-            "mimeType": mime,
+            # Server expects 'mimetype' (per Pydantic model InlineData)
+            "mimetype": mime,
         }
     }
 
@@ -107,41 +88,73 @@ def send_to_agent(parts):
     """Send message parts to ADK and return assistant parts."""
     payload = {
         "app_name": APP_NAME,
-        "user_id": USER_ID,
+        "user_id": st.session_state.user_id,
         "session_id": st.session_state.session_id,
         "new_message": {
             "role": "user",
             "parts": parts,
         },
     }
-    resp = requests.post(f"{SERVER}/run", json=payload, timeout=120)
-    resp.raise_for_status()
-    data = resp.json()
 
-    # Expected: list of messages; take first assistant message
-    # Safeguards for different shapes just in case
-    assistant_parts = []
     try:
-        # Common shape: [{"content":{"parts":[...]}}]
-        first = data[0]
-        content = first.get("content") if isinstance(first, dict) else None
-        assistant_parts = (content or {}).get("parts", [])
-    except Exception:
+        resp = requests.post(f"{SERVER}/run", json=payload, timeout=120)
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError:
+            # Auto-recover if backend session was lost (e.g., server restart)
+            body = ""
+            try:
+                body = resp.text or ""
+            except Exception:
+                body = ""
+            if "session not found" in body.lower():
+                # Recreate session on server and retry once
+                _create_server_session()
+                resp = requests.post(f"{SERVER}/run", json=payload, timeout=120)
+                resp.raise_for_status()
+            else:
+                raise
+        data = resp.json()
+
+        # Parse according to documented schema: a list of part-like dicts
+        # Example item: {"text": "..."} or {"inline_data": {"mime_type": "...", "data": "..."}}
         assistant_parts = []
+        if isinstance(data, list):
+            for item in data:
+                if not isinstance(item, dict):
+                    # handle list of strings fallback
+                    if isinstance(item, str):
+                        assistant_parts.append({"text": item})
+                    continue
+                if item.get("text"):
+                    assistant_parts.append({"text": item.get("text")})
+                elif item.get("inline_data"):
+                    inline = item.get("inline_data") or {}
+                    # Map server's inline_data to UI's inlineData
+                    mime = None
+                    name = "attachment"
+                    if isinstance(inline, dict):
+                        mime = inline.get("mime_type") or inline.get("mimetype")
+                        name = inline.get("display_name") or inline.get("displayName") or name
+                    assistant_parts.append(
+                        {
+                            "inlineData": {
+                                "displayName": name,
+                                # Keep UI compatible key; render supports mimeType|mimetype
+                                "mimeType": mime or "application/octet-stream",
+                            }
+                        }
+                    )
+        elif isinstance(data, dict) and "text" in data:
+            # Fallback: single dict with text
+            assistant_parts = [{"text": data["text"]}]
+        # Final fallback: if we collected strings earlier but none now
+        if not assistant_parts and isinstance(data, list) and data and isinstance(data[0], str):
+            assistant_parts = [{"text": "\n".join(data)}]
 
-    # Fallback: if server returns a flat text
-    if not assistant_parts and isinstance(data, dict) and "text" in data:
-        assistant_parts = [{"text": data["text"]}]
-
-    if (
-        not assistant_parts
-        and isinstance(data, list)
-        and data
-        and isinstance(data[0], str)
-    ):
-        assistant_parts = [{"text": "\n".join(data)}]
-
-    return assistant_parts
+        return assistant_parts
+    except Exception as _:
+        return [{"text": "_(Error occurred while contacting agent.)_"}]
 
 
 def render_part(part):
@@ -151,9 +164,7 @@ def render_part(part):
     elif "inlineData" in part:
         meta = part["inlineData"]
         name = meta.get("displayName", "attachment")
-        mime = meta.get("mimeType", "application/octet-stream")
-        size_info = ""
-        # we can't reconstruct original bytes here (we only keep b64 inside state if needed)
+        mime = meta.get("mimeType") or meta.get("mimetype") or "application/octet-stream"
         st.caption(f"📎 **{name}** ({mime})")
 
 
@@ -182,7 +193,6 @@ if user_input is not None:
         for _f in files:
             if _f is None:
                 continue
-            # Important: we need to re-seek afterwards if you also want to re-read later
             user_parts.append(file_part_from_uploaded(_f))
 
     # Push user message into history
@@ -193,15 +203,14 @@ if user_input is not None:
         for p in user_parts:
             render_part(p)
 
-    # Call agent and render assistant reply
+    # Call agent and render assistant reply (no streaming)
     with st.chat_message("assistant"):
         with st.spinner("Generating response..."):
             assistant_parts = send_to_agent(user_parts)
             if not assistant_parts:
                 assistant_parts = [{"text": "_(No response parts returned.)_"}]
-
-            # STREAMING EFFECT here
-            render_assistant_parts_streaming(assistant_parts)
+            for p in assistant_parts:
+                render_part(p)
 
     # Save assistant reply to history
     st.session_state.messages.append({"role": "assistant", "parts": assistant_parts})
