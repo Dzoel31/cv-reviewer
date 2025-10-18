@@ -2,8 +2,6 @@
 
 A simple Streamlit app to:
 
-- Extract text from PDF CVs using PyMuPDF
-- Parse heuristic sections (summary, skills, experience, etc.)
 - Score the CV with lightweight heuristics
 - Suggest matching jobs based on detected skills
 
@@ -13,7 +11,6 @@ Python 3.12+
 
 Dependencies (managed via `pyproject.toml`):
 
-- pymupdf
 - streamlit
 - google-adk (for the agent definition used by the backend code)
 
@@ -33,19 +30,25 @@ Create a virtual environment (optional) and install dependencies:
     .\.venv\Scripts\Activate.ps1
     ```
 
-3. Install dependencies:
+    for linux
+
+   ```
+   source .venv/bin/activate
+   ```
+
+4. Install dependencies:
 
     ```pwsh
     uv sync
     ```
 
-4. Run ADK as a web server
+5. Run ADK as a web server
 
     ```pwsh
     adk api_server
     ```
 
-5. Run the Streamlit UI:
+6. Run the Streamlit UI:
 
     ```pwsh
     streamlit run main.py
