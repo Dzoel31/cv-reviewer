@@ -1,0 +1,67 @@
+name: Prune old Docker Hub tags
+
+on:
+  schedule:
+    - cron: "0 18 * * 0"   # tiap minggu, 01:00 WIB+7
+  workflow_dispatch:
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    env:
+      DH_USER: ${{ secrets.DOCKER_USERNAME }}
+      DH_PASS: ${{ secrets.DOCKER_PUSH }}
+      REPO: cv-agent
+      KEEP: "5"
+    steps:
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Get JWT
+        id: auth
+        run: |
+          TOKEN=$(curl -s -H "Content-Type: application/json" \
+            -d "{\"username\":\"$DH_USER\",\"password\":\"$DH_PASS\"}" \
+            https://hub.docker.com/v2/users/login/ | jq -r .token)
+          if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
+            echo "Docker Hub login failed"; exit 1
+          fi
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: List tags and prune
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          list_tags() {
+            curl -s -H "Authorization: JWT $TOKEN" \
+              "https://hub.docker.com/v2/repositories/$DH_USER/$REPO/tags?page_size=100"
+          }
+
+          delete_tag() {
+            local TAG="$1"
+            echo "Deleting tag: $TAG"
+            curl -s -X DELETE -H "Authorization: JWT $TOKEN" \
+              "https://hub.docker.com/v2/repositories/$DH_USER/$REPO/tags/$TAG/" > /dev/null
+          }
+
+          # Ambil semua tag; filter pola 'adk-<sha7>' dan 'ui-<sha7>'
+          TAGS=$(list_tags)
+          for VAR in adk ui; do
+            echo "== Variant: $VAR =="
+            # sort by last_updated desc, ambil hanya yang sha pattern
+            TAG_LIST=$(echo "$TAGS" | jq -r --arg V "$VAR" '
+              .results[]
+              | select(.name | test("^" + $V + "-[a-f0-9]{7}$"))
+              | [.name, .last_updated] | @tsv
+            ' | sort -k2 -r)
+
+            COUNT=0
+            echo "$TAG_LIST" | while IFS=$'\t' read -r NAME UPDATED; do
+              COUNT=$((COUNT+1))
+              if [ "$COUNT" -le "$KEEP" ]; then
+                echo "keep $NAME ($UPDATED)"
+              else
+                delete_tag "$NAME"
+              fi
+            done
+          done
