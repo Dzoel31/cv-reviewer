@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.2.0 (2025-10-18)
+
+### Features
+
+- Update CI workflows for Docker image management
+  ([`690dcd8`](https://github.com/Dzoel31/cv-reviewer/commit/690dcd809177925be7319ac8542c99dfec426666))
+
+
 ## v1.1.0 (2025-10-18)
 
 ### Bug Fixes
