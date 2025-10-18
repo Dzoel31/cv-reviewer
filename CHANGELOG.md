@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.1 (2025-10-18)
+
+### Bug Fixes
+
+- Typo dockerfile
+  ([`2980348`](https://github.com/Dzoel31/cv-reviewer/commit/2980348379273a8abe2431d84c07ee72dba1223b))
+
+
 ## v1.3.0 (2025-10-18)
 
 
