@@ -1212,6 +1212,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "python-semantic-release" },
+    { name = "ruff" },
 ]
 test = [
     { name = "pytest" },
@@ -1227,7 +1228,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "python-semantic-release", specifier = ">=10.4.1" }]
+dev = [
+    { name = "python-semantic-release", specifier = ">=10.4.1" },
+    { name = "ruff", specifier = ">=0.14.1" },
+]
 test = [
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "ruff", specifier = ">=0.14.1" },

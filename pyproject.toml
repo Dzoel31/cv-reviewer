@@ -14,10 +14,10 @@ dependencies = [
 [dependency-groups]
 dev = [
     "python-semantic-release>=10.4.1",
+    "ruff>=0.14.1",
 ]
 test = [
     "pytest>=8.4.2",
-    "ruff>=0.14.1",
 ]
 
 [tool.semantic_release]
