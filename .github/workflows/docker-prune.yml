@@ -1,8 +1,8 @@
-name: Prune old Docker Hub tags
+name: Prune old release tags (keep N)
 
 on:
   schedule:
-    - cron: "0 18 * * 0"   # tiap minggu, 01:00 WIB+7
+    - cron: "0 18 * * 0"
   workflow_dispatch:
 
 jobs:
@@ -11,7 +11,7 @@ jobs:
     env:
       DH_USER: ${{ secrets.DOCKER_USERNAME }}
       DH_PASS: ${{ secrets.DOCKER_PUSH }}
-      REPO: cv-agent
+      REPO: ${{ github.event.repository.name }}
       KEEP: "5"
     steps:
       - name: Install jq
@@ -23,45 +23,49 @@ jobs:
           TOKEN=$(curl -s -H "Content-Type: application/json" \
             -d "{\"username\":\"$DH_USER\",\"password\":\"$DH_PASS\"}" \
             https://hub.docker.com/v2/users/login/ | jq -r .token)
-          if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
-            echo "Docker Hub login failed"; exit 1
-          fi
+          [ -z "$TOKEN" -o "$TOKEN" = "null" ] && { echo "Login failed"; exit 1; }
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
-      - name: List tags and prune
+      - name: Prune per variant
         env:
           TOKEN: ${{ steps.auth.outputs.token }}
+        shell: bash
         run: |
-          list_tags() {
-            curl -s -H "Authorization: JWT $TOKEN" \
-              "https://hub.docker.com/v2/repositories/$DH_USER/$REPO/tags?page_size=100"
+          fetch_tags() {
+            local page=1
+            while :; do
+              RES=$(curl -s -H "Authorization: JWT $TOKEN" \
+                "https://hub.docker.com/v2/repositories/$DH_USER/$REPO/tags?page_size=100&page=$page")
+              echo "$RES"
+              NEXT=$(echo "$RES" | jq -r .next)
+              [ "$NEXT" = "null" ] && break
+              page=$((page+1))
+            done
           }
 
-          delete_tag() {
-            local TAG="$1"
-            echo "Deleting tag: $TAG"
-            curl -s -X DELETE -H "Authorization: JWT $TOKEN" \
-              "https://hub.docker.com/v2/repositories/$DH_USER/$REPO/tags/$TAG/" > /dev/null
-          }
+          # Ambil semua tag sekaligus
+          ALL=$(fetch_tags)
 
-          # Ambil semua tag; filter pola 'adk-<sha7>' dan 'ui-<sha7>'
-          TAGS=$(list_tags)
           for VAR in adk ui; do
-            echo "== Variant: $VAR =="
-            # sort by last_updated desc, ambil hanya yang sha pattern
-            TAG_LIST=$(echo "$TAGS" | jq -r --arg V "$VAR" '
+            echo "=== Variant: $VAR ==="
+            # Ambil hanya tag rilis semver: $VAR-vX.Y.Z (exclude -latest)
+            LIST=$(echo "$ALL" | jq -r --arg V "$VAR" '
               .results[]
-              | select(.name | test("^" + $V + "-[a-f0-9]{7}$"))
+              | select(.name | test("^" + $V + "-v[0-9]+\\.[0-9]+\\.[0-9]+$"))
               | [.name, .last_updated] | @tsv
             ' | sort -k2 -r)
 
+            # Simpan N terbaru, hapus sisanya
             COUNT=0
-            echo "$TAG_LIST" | while IFS=$'\t' read -r NAME UPDATED; do
+            while IFS=$'\t' read -r NAME UPDATED; do
+              [ -z "$NAME" ] && continue
               COUNT=$((COUNT+1))
               if [ "$COUNT" -le "$KEEP" ]; then
-                echo "keep $NAME ($UPDATED)"
+                echo "keep  $NAME ($UPDATED)"
               else
-                delete_tag "$NAME"
+                echo "delete $NAME"
+                curl -s -X DELETE -H "Authorization: JWT $TOKEN" \
+                  "https://hub.docker.com/v2/repositories/$DH_USER/$REPO/tags/$NAME/" > /dev/null
               fi
-            done
+            done <<< "$LIST"
           done

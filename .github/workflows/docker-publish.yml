@@ -1,15 +1,12 @@
-name: Build & Push Docker Images
+name: Build & Push on Release
 
 on:
-  workflow_run:
-    workflows: ["Release"]
-    types: [completed]
+  release:
+    types: [published]
 
 jobs:
   build-and-push:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
@@ -20,39 +17,24 @@ jobs:
             file: Dockerfile.ui
 
     steps:
-      - name: Checkout code at correct commit (with tags)
+      - name: Checkout (release commit)
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.release.target_commitish }}
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Resolve release tag (git tag --points-at)
-        id: tag
-        shell: bash
-        run: |
-          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
-          TAGS=$(git tag --points-at "$COMMIT_SHA" | sort -V)
-          if [ -z "$TAGS" ]; then
-            echo "No tag found pointing at $COMMIT_SHA" >&2
-            exit 1
-          fi
-          # pilih satu; kalau banyak, ambil yang "terbesar" versi-nya
-          TAG=$(echo "$TAGS" | tail -n 1)
-          echo "Resolved tag: $TAG"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Set up QEMU (optional for multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PUSH }}
-
-      - name: Set up QEMU (optional for multi-arch)
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Build & Push (${{ matrix.name }})
         uses: docker/build-push-action@v6
@@ -62,6 +44,6 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.name }}-latest
-            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.name }}-${{ steps.tag.outputs.tag }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.name }}-${{ github.event.release.tag_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
