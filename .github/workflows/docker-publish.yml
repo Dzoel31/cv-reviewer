@@ -12,7 +12,7 @@ jobs:
       matrix:
         include:
           - name: adk
-            file: Dockerfile.adk
+            file: Dockerfile.agent
           - name: ui
             file: Dockerfile.ui
 
