@@ -13,11 +13,11 @@ st.title("CV Reviewer (Streamlit + ADK)")
 
 st.sidebar.header("Configuration")
 st.sidebar.markdown("""
-Configure the application settings below."""
-)
+Configure the application settings below.""")
 # Credentials
 api_key = st.sidebar.text_input("Google API Key", type="password")
 use_vertex_ai = st.sidebar.checkbox("Use Vertex AI", value=False)
+
 
 def _save_settings() -> None:
     try:
@@ -32,7 +32,9 @@ def _save_settings() -> None:
     except Exception as e:
         st.error(f"Error saving settings: {e}")
 
+
 st.sidebar.button("Save Settings", on_click=_save_settings)
+
 
 def _create_server_session():
     """Create a new session on the ADK server for the current local session_id/user_id."""
@@ -50,6 +52,7 @@ def _create_server_session():
     data = response.json()
     print("Created (or recreated) session on server:", data)
 
+
 def ensure_session():
     if "session_id" not in st.session_state:
         try:
@@ -65,7 +68,9 @@ def ensure_session():
         # Each item: {"role": "user"|"assistant", "parts": [{"text":...} or {"inlineData":{...}}]}
         st.session_state.messages = []
 
+
 ensure_session()
+
 
 def file_part_from_uploaded(_file):
     """Convert a Streamlit UploadedFile to ADK inlineData part."""
@@ -135,7 +140,11 @@ def send_to_agent(parts):
                     name = "attachment"
                     if isinstance(inline, dict):
                         mime = inline.get("mime_type") or inline.get("mimetype")
-                        name = inline.get("display_name") or inline.get("displayName") or name
+                        name = (
+                            inline.get("display_name")
+                            or inline.get("displayName")
+                            or name
+                        )
                     assistant_parts.append(
                         {
                             "inlineData": {
@@ -149,7 +158,12 @@ def send_to_agent(parts):
             # Fallback: single dict with text
             assistant_parts = [{"text": data["text"]}]
         # Final fallback: if we collected strings earlier but none now
-        if not assistant_parts and isinstance(data, list) and data and isinstance(data[0], str):
+        if (
+            not assistant_parts
+            and isinstance(data, list)
+            and data
+            and isinstance(data[0], str)
+        ):
             assistant_parts = [{"text": "\n".join(data)}]
 
         return assistant_parts
@@ -164,7 +178,9 @@ def render_part(part):
     elif "inlineData" in part:
         meta = part["inlineData"]
         name = meta.get("displayName", "attachment")
-        mime = meta.get("mimeType") or meta.get("mimetype") or "application/octet-stream"
+        mime = (
+            meta.get("mimeType") or meta.get("mimetype") or "application/octet-stream"
+        )
         st.caption(f"📎 **{name}** ({mime})")
 
 

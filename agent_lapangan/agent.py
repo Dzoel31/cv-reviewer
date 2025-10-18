@@ -82,10 +82,10 @@ async def main(payload: Union[Payload, dict]):
     if not isinstance(payload, Payload):
         payload = Payload.model_validate(payload)  # Pydantic v2
         # For Pydantic v1, replace with: payload = Payload.parse_obj(payload)
-    
+
     if payload.new_message is None:
         return []
-    
+
     content = types.Content(
         role=payload.new_message.role,
         parts=[_part_from_msg(m) for m in payload.new_message.parts],
