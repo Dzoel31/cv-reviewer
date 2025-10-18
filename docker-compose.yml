@@ -1,0 +1,25 @@
+services:
+  adk:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: adk
+    ports:
+      - "8000:8000"   # localhost:8000 -> ADK
+    environment:
+      - PORT=8000
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: cv-ui
+    ports:
+      - "8501:8501"   # localhost:8501 -> Streamlit
+    environment:
+      - PORT=8501
+      - ADK_SERVER=http://adk:8000   # <== talk ke service "adk" via docker network
+      - APP_NAME=agent_lapangan
+      - USER_ID=web_user
+    depends_on:
+      - adk

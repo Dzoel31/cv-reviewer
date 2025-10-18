@@ -1,0 +1,28 @@
+name: "Learn Run CI"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13' ]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install uv and set up Python
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: uv sync --frozen --all-extras
+    - name: Check code formatting
+      run: uv run ruff format --check .
+    - name: Check code linting
+      run: uv run ruff check .

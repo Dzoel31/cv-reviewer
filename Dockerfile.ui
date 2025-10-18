@@ -1,0 +1,42 @@
+# ---------- STAGE 1: builder (install deps sekali, buang cache) ----------
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# install uv (lebih cepat dari pip, cache-aware)
+ADD https://astral.sh/uv/install.sh /uv-installer.sh
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+# buat virtualenv khusus deps (mudah dicopy ke final image)
+RUN python -m venv /opt/venv
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+# install hanya yang dibutuhkan server (google-adk)
+# --no-cache-dir untuk jaga2; uv sendiri sudah hemat cache
+RUN uv pip install --python /opt/venv/bin/python --no-cache-dir streamlit
+
+# ---------- STAGE 2: runtime (bersih & kecil) ----------
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# copy venv hasil build (tanpa cache & tool build)
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+WORKDIR /app
+# copy source aplikasi (agent_lapangan, config, dsb)
+COPY . .
+
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "main.py", "--server.port=8501", "--server.address=0.0.0.0"]
