@@ -13,6 +13,7 @@ Dependencies (managed via `pyproject.toml`):
 
 - streamlit
 - google-adk (for the agent definition used by the backend code)
+- FastAPI
 
 ## Quick start
 
@@ -55,3 +56,39 @@ Create a virtual environment (optional) and install dependencies:
     ```
 
 Then open the local URL shown by Streamlit (typically <http://localhost:8501>), upload a PDF CV, and review the results.
+
+
+## Docker
+
+1. **Pull the Docker image**  
+    Run the following command to pull the latest Docker image:
+
+    ```bash
+    docker pull dzuladj/cv-reviewer:ui-latest
+    ```
+
+    and
+
+   ```bash
+   docker pull dzuladj/cv-reviewer:adk-latest
+   ```
+
+2. **Create Docker Network for UI and ADK**
+   Run the following command:
+
+   ```bash
+   docker network create your_custom_network
+   ```
+
+3. **Run Docker image**
+    ADK image:
+   
+    ```bash
+   docker run -d --name your_adk_container_name --network your_custom_network -p 8000:8000 dzuladj/cv-reviewer:adk-latest
+   ```
+
+   Streamlit (UI):
+    
+   ```bash
+   docker run -d --name your_ui_container_name --network your_custom_network -p 8501:8501 -e ADK_SERVER=http://your_adk_container_name:8000 dzuladj/cv-reviewer:ui-latest
+   ```
