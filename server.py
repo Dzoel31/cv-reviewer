@@ -15,6 +15,7 @@ ENV_VARS = {
     "GOOGLE_GENAI_USE_VERTEXAI": "",
 }
 
+
 @app.post("/secret")
 async def set_secret(payload: dict):
     if payload:
@@ -24,10 +25,12 @@ async def set_secret(payload: dict):
             elif key == "use_vertex_ai":
                 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "1" if value == "1" else "0"
 
+
 @app.post("/reset-secrets")
 async def reset_secrets():
     for key, value in ENV_VARS.items():
         os.environ[key] = value
+
 
 @app.post("/session")
 async def create_session(payload: Payload):
