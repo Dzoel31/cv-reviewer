@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.2 (2025-10-20)
+
+### Bug Fixes
+
+- Credentials handling
+  ([`f8695db`](https://github.com/Dzoel31/cv-reviewer/commit/f8695db4036b1b81d85a4999924ebee71d1a6734))
+
+
 ## v1.3.1 (2025-10-18)
 
 ### Bug Fixes
