@@ -18,6 +18,19 @@ Configure the application settings below.""")
 api_key = st.sidebar.text_input("Google API Key", type="password")
 use_vertex_ai = st.sidebar.checkbox("Use Vertex AI", value=False)
 
+def reset_environment():
+    """Reset environment variables on the server."""
+    try:
+        requests.post(f"{SERVER}/reset-secrets", timeout=30)
+    except Exception as e:
+        st.error(f"Error resetting environment: {e}")
+
+def init_session():
+    if "initialized" not in st.session_state:
+        reset_environment()
+        st.session_state.initialized = True
+
+init_session()
 
 def _save_settings() -> None:
     try:

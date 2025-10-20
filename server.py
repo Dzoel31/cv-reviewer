@@ -10,15 +10,24 @@ app = FastAPI(
     version="1.0.0",
 )
 
+ENV_VARS = {
+    "GOOGLE_API_KEY": "",
+    "GOOGLE_GENAI_USE_VERTEXAI": "",
+}
 
 @app.post("/secret")
 async def set_secret(payload: dict):
     if payload:
-        os.environ["GOOGLE_API_KEY"] = payload.get("api_key", "")
-        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = payload.get(
-            "use_vertex_ai", "false"
-        ).lower()
+        for key, value in payload.items():
+            if key == "api_key":
+                os.environ["GOOGLE_API_KEY"] = value
+            elif key == "use_vertex_ai":
+                os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "1" if value == "1" else "0"
 
+@app.post("/reset-secrets")
+async def reset_secrets():
+    for key, value in ENV_VARS.items():
+        os.environ[key] = value
 
 @app.post("/session")
 async def create_session(payload: Payload):
