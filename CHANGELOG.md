@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.4.0 (2025-10-21)
+
+### Documentation
+
+- Enhance README with contributors and formatting
+  ([`d3948d2`](https://github.com/Dzoel31/cv-reviewer/commit/d3948d2c1ae896a7de72644c6be60adf40950243))
+
+### Features
+
+- Add conversation and settings pages with session management
+  ([`344a714`](https://github.com/Dzoel31/cv-reviewer/commit/344a714975da3e1abe8bbadf1b8fff5424448334))
+
+
 ## v1.3.2 (2025-10-20)
 
 ### Bug Fixes
