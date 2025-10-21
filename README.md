@@ -60,7 +60,8 @@ Then open the local URL shown by Streamlit (typically <http://localhost:8501>), 
 
 ## Docker
 
-1. **Pull the Docker image**  
+1. **Pull the Docker image**
+
     Run the following command to pull the latest Docker image:
 
     ```bash
@@ -74,6 +75,7 @@ Then open the local URL shown by Streamlit (typically <http://localhost:8501>), 
    ```
 
 2. **Create Docker Network for UI and ADK**
+
    Run the following command:
 
    ```bash
@@ -81,7 +83,8 @@ Then open the local URL shown by Streamlit (typically <http://localhost:8501>), 
    ```
 
 3. **Run Docker image**
-    ADK image:
+
+   ADK image:
    
     ```bash
    docker run -d --name your_adk_container_name --network your_custom_network -p 8000:8000 dzuladj/cv-reviewer:adk-latest
@@ -92,3 +95,8 @@ Then open the local URL shown by Streamlit (typically <http://localhost:8501>), 
    ```bash
    docker run -d --name your_ui_container_name --network your_custom_network -p 8501:8501 -e ADK_SERVER=http://your_adk_container_name:8000 dzuladj/cv-reviewer:ui-latest
    ```
+
+The People Behind the Project 👥
+- Derajat Salim Wibowo
+- Yusuf Martinus Arief
+- Dzulfikri Adjmal
