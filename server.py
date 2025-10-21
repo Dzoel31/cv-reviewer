@@ -34,9 +34,16 @@ async def reset_secrets():
 
 @app.post("/session")
 async def create_session(payload: Payload):
-    return await _create_session(payload)
+    try:
+        return await _create_session(payload)
+    except ValueError as e:
+        return {"error": f"Invalid payload: {e}"}
 
 
 @app.post("/run")
 async def run_agent(payload: Payload):
-    return await run_agent_main(payload)
+    try:
+        return await run_agent_main(payload)
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return {"error": str(e)}
